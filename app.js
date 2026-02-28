@@ -143,63 +143,7 @@ function openModal(song) {
 
   document.getElementById("modalTitle").innerText = `${song.number}. ${song.title}`;
 
-  // Normalize line endings
-  const normalized = song.lyrics.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
-
-  // Smart stanza grouping: lines ending with ||word|| mark end of a charanam
-  const allLines = normalized.split("\n").filter(l => l.trim());
-  let groups = [];
-  let currentGroup = [];
-
-  allLines.forEach(line => {
-    currentGroup.push(line.trim());
-    // If line ends with ||something||, this group is complete
-    if (/\|\|[^|]+\|\|\s*$/.test(line.trim())) {
-      groups.push([...currentGroup]);
-      currentGroup = [];
-    }
-  });
-  // Any remaining lines form a group
-  if (currentGroup.length > 0) {
-    groups.push(currentGroup);
-  }
-
-  // Fallback: if only 1 group (no ||word|| markers found), split every 4 lines
-  if (groups.length === 1 && allLines.length > 4) {
-    groups = [];
-    for (let i = 0; i < allLines.length; i += 4) {
-      groups.push(allLines.slice(i, i + 4).map(l => l.trim()));
-    }
-  }
-
-  const isEnglish = song.language === "English";
-  let verseNum = 0;
-  const formatted = groups.map((group, index) => {
-    // First group is always pallavi/chorus; groups containing #అ.ప. are also pallavi
-    const isPallavi = index === 0 || group.some(l => l.includes("#అ.ప."));
-
-    if (!isPallavi) verseNum++;
-
-    const linesHtml = group.map(line => {
-      let text = line;
-      // Style #అ.ప. marker with distinct color
-      text = text.replace(/#అ\.ప\.\s*:?\s*/g, '<span class="pallavi-marker">#అ.ప. : </span>');
-      // Style ||word|| references as repeat markers
-      text = text.replace(/\|\|(\d+)\|\|/g, '<span class="repeat-ref">×$1</span>');
-      text = text.replace(/\|\|([^|]+)\|\|/g, '<span class="repeat-ref"> $1</span>');
-      return `<p>${text}</p>`;
-    }).join("");
-
-    if (!linesHtml) return "";
-
-    if (isPallavi) {
-      const pallaviClass = isEnglish ? 'pallavi pallavi-en' : 'pallavi';
-      return `<div class="${pallaviClass}">${linesHtml}</div>`;
-    } else {
-      const label = `Verse ${verseNum}`;
-      return `<div class="stanza"><div class="stanza-num">${label}</div>${linesHtml}</div>`;
-    }
-  }).filter(s => s).join("");
+  const formatted = parseLyrics(song);
 
   document.getElementById("modalLyrics").innerHTML = formatted;
   document.getElementById("modalLyrics").style.fontSize = modalFontSize + "px";
@@ -208,6 +152,182 @@ function openModal(song) {
   document.body.style.overflow = "hidden";
 
   updateModalFavIcon();
+}
+
+/* ===== LYRICS PARSER ===== */
+
+/**
+ * Detect if a section text represents a chorus/refrain label.
+ * Returns the label text to strip, or null.
+ */
+function detectChorusLabel(text) {
+  // English: Chorus, Refrain, CHORUS
+  const engMatch = text.match(/^(Chorus\s*:?|Refrain\s*:?\s*\w*|CHORUS\s*:?)\s*/i);
+  if (engMatch) return engMatch[0];
+  // Telugu: పల్లవి :, పల్లవి:
+  const telMatch = text.match(/^(పల్లవి\s*:?\s*)/);
+  if (telMatch) return telMatch[0];
+  return null;
+}
+
+/**
+ * Detect if a section starts with a numbered verse prefix like "1. ", "2. "
+ * Returns the number, or null.
+ */
+function detectVerseNumber(text) {
+  const match = text.match(/^(\d+)\.\s/);
+  return match ? parseInt(match[1]) : null;
+}
+
+/**
+ * Style a single line of lyrics text with markers.
+ */
+function styleLine(line) {
+  let text = line;
+  // Style #అ.ప. marker with distinct color
+  text = text.replace(/#అ\.ప\.\s*:?\s*/g, '<span class="pallavi-marker">#అ.ప. : </span>');
+  // Style ||number|| as repeat count (×N)
+  text = text.replace(/\|\|(\d+)\|\|/g, '<span class="repeat-ref">×$1</span>');
+  // Style ||word|| references as repeat markers
+  text = text.replace(/\|\|([^|]+)\|\|/g, '<span class="repeat-ref"> $1</span>');
+  // Style inline repeat indicators like (2), (3), -2, -3 at end of line or standalone
+  text = text.replace(/\((\d+)\)/g, '<span class="repeat-count">×$1</span>');
+  return `<p>${text}</p>`;
+}
+
+/**
+ * Main lyrics parser — transforms raw lyrics string into styled HTML.
+ */
+function parseLyrics(song) {
+  const isEnglish = song.language === "English";
+
+  // Normalize line endings
+  const normalized = song.lyrics.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+
+  // Split by ~ into raw sections
+  const rawSections = normalized.split("~").map(s => s.trim()).filter(s => s);
+
+  // Build structured sections with type info
+  let sections = [];
+  let verseCounter = 0;
+
+  rawSections.forEach((sectionText, sectionIndex) => {
+    const lines = sectionText.split("\n").filter(l => l.trim()).map(l => l.trim());
+    if (lines.length === 0) return;
+
+    // Determine section type
+    let type = "verse"; // default
+    let label = "";
+    let stripFirstLinePrefix = null;
+
+    // Rule 1: First section is always pallavi/chorus
+    if (sectionIndex === 0) {
+      type = "pallavi";
+    }
+
+    // Rule 2: Contains #అ.ప. → pallavi
+    if (lines.some(l => l.includes("#అ.ప."))) {
+      type = "pallavi";
+    }
+
+    // Rule 3: Starts with Chorus/Refrain label (English songs)
+    const chorusLabel = detectChorusLabel(lines[0]);
+    if (chorusLabel) {
+      type = "pallavi";
+      // Strip the label from the first line since CSS ::before handles it
+      stripFirstLinePrefix = chorusLabel;
+    }
+
+    // Rule 4: Numbered verse prefix like "1. ", "2. "
+    const verseNum = detectVerseNumber(lines[0]);
+    if (verseNum && sectionIndex > 0 && !chorusLabel) {
+      type = "verse";
+      label = `Verse ${verseNum}`;
+    }
+
+    // Auto-increment verse counter for unlabeled verses
+    if (type === "verse") {
+      if (!label) {
+        verseCounter++;
+        label = `Verse ${verseCounter}`;
+      } else {
+        // Sync counter with explicit number
+        const num = parseInt(label.replace("Verse ", ""));
+        if (num > verseCounter) verseCounter = num;
+      }
+    }
+
+    // Process lines — strip chorus label from first line if needed
+    let processedLines = [...lines];
+    if (stripFirstLinePrefix) {
+      processedLines[0] = processedLines[0].substring(stripFirstLinePrefix.length).trim();
+      // If stripping made the line empty, remove it
+      if (!processedLines[0]) processedLines.shift();
+    }
+
+    // For sections with ||word|| sub-boundaries, split into sub-groups
+    if (rawSections.length === 1) {
+      // No ~ separator at all — use ||word|| grouping
+      let subGroups = [];
+      let currentGroup = [];
+      let isFirstGroup = true;
+
+      processedLines.forEach(line => {
+        // Start a new group when a numbered verse line appears
+        const lineVerseNum = detectVerseNumber(line);
+        if (lineVerseNum && currentGroup.length > 0) {
+          subGroups.push({ lines: [...currentGroup], type: isFirstGroup ? "pallavi" : "verse" });
+          isFirstGroup = false;
+          currentGroup = [];
+        }
+
+        currentGroup.push(line);
+
+        // End the group when ||word|| appears at end of line
+        if (/\|\|[^|]+\|\|\s*$/.test(line)) {
+          subGroups.push({ lines: [...currentGroup], type: isFirstGroup ? "pallavi" : "verse" });
+          isFirstGroup = false;
+          currentGroup = [];
+        }
+      });
+      if (currentGroup.length > 0) {
+        subGroups.push({ lines: currentGroup, type: isFirstGroup ? "pallavi" : "verse" });
+      }
+
+      // If no sub-grouping happened (only 1 group), show as single pallavi
+      if (subGroups.length <= 1) {
+        sections.push({ type: "pallavi", lines: processedLines, label: "" });
+      } else {
+        let subVerseCounter = 0;
+        subGroups.forEach(sg => {
+          if (sg.type === "verse") {
+            subVerseCounter++;
+            sections.push({ type: "verse", lines: sg.lines, label: `Verse ${subVerseCounter}` });
+          } else {
+            sections.push({ type: "pallavi", lines: sg.lines, label: "" });
+          }
+        });
+      }
+      return; // Already handled — skip adding to sections below
+    }
+
+    sections.push({ type, lines: processedLines, label });
+  });
+
+  // Render sections to HTML
+  const html = sections.map(section => {
+    const linesHtml = section.lines.map(styleLine).join("");
+    if (!linesHtml) return "";
+
+    if (section.type === "pallavi") {
+      const cls = isEnglish ? "pallavi pallavi-en" : "pallavi";
+      return `<div class="${cls}">${linesHtml}</div>`;
+    } else {
+      return `<div class="stanza"><div class="stanza-num">${section.label}</div>${linesHtml}</div>`;
+    }
+  }).filter(s => s).join("");
+
+  return html;
 }
 
 function closeModal() {

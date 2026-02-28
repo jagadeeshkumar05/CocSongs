@@ -42,23 +42,53 @@
 
             // Smart lyrics formatting
             const normalized = song.lyrics.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
-            const allLines = normalized.split("\n").filter(l => l.trim());
+            // Split by ~ first to separate pallavi from verses
+            const sections = normalized.split("~").filter(s => s.trim());
             let groups = [];
-            let currentGroup = [];
-            allLines.forEach(line => {
-                currentGroup.push(line.trim());
-                if (/\|\|[^|]+\|\|\s*$/.test(line.trim())) {
-                    groups.push([...currentGroup]);
-                    currentGroup = [];
-                }
-            });
-            if (currentGroup.length > 0) groups.push(currentGroup);
 
-            // Fallback: if only 1 group (no ||word|| markers), split every 4 lines
-            if (groups.length === 1 && allLines.length > 4) {
-                groups = [];
-                for (let i = 0; i < allLines.length; i += 4) {
-                    groups.push(allLines.slice(i, i + 4).map(l => l.trim()));
+            if (sections.length > 1) {
+                // ~ separator found: each section is a separate group (pallavi + verses)
+                sections.forEach(section => {
+                    const sectionLines = section.split("\n").filter(l => l.trim()).map(l => l.trim());
+                    if (sectionLines.length > 0) {
+                        let subGroups = [];
+                        let currentGroup = [];
+                        sectionLines.forEach(line => {
+                            currentGroup.push(line);
+                            if (/\|\|[^|]+\|\|\s*$/.test(line)) {
+                                subGroups.push([...currentGroup]);
+                                currentGroup = [];
+                            }
+                        });
+                        if (currentGroup.length > 0) subGroups.push(currentGroup);
+                        subGroups.forEach(sg => groups.push(sg));
+                    }
+                });
+            } else {
+                // No ~ separator: use ||word|| grouping + numbered verse detection
+                const allLines = normalized.split("\n").filter(l => l.trim());
+                let currentGroup = [];
+                allLines.forEach(line => {
+                    const trimmed = line.trim();
+                    // If line starts with a numbered verse (e.g. "1.", "2."), start a new group
+                    if (/^\d+\.\s/.test(trimmed) && currentGroup.length > 0) {
+                        groups.push([...currentGroup]);
+                        currentGroup = [];
+                    }
+                    currentGroup.push(trimmed);
+                    if (/\|\|[^|]+\|\|\s*$/.test(trimmed)) {
+                        groups.push([...currentGroup]);
+                        currentGroup = [];
+                    }
+                });
+                if (currentGroup.length > 0) groups.push(currentGroup);
+
+                // Fallback: if only 1 group (no markers found), split every 4 lines
+                if (groups.length === 1 && allLines.length > 4) {
+                    groups = [];
+                    for (let i = 0; i < allLines.length; i += 4) {
+                        groups.push(allLines.slice(i, i + 4).map(l => l.trim()));
+                    }
                 }
             }
 
