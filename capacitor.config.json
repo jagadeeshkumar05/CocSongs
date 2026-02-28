@@ -1,0 +1,11 @@
+{
+    "appId": "com.cocsongs.app",
+    "appName": "COC Songs",
+    "webDir": "www",
+    "server": {
+        "androidScheme": "https"
+    },
+    "android": {
+        "allowMixedContent": false
+    }
+}

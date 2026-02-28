@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="te">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="theme-color" content="#4a1a8a">
+    <title>పాట - COC Songs</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+
+    <div class="reader-container">
+        <div class="reader-toolbar">
+            <button class="back-btn" onclick="goBack()">← వెనుకకు</button>
+            <div class="reader-controls">
+                <button onclick="changeFont(-2)" title="చిన్నగా">అ-</button>
+                <button onclick="changeFont(2)" title="పెద్దగా">అ+</button>
+                <button class="fav-btn" id="favBtn" onclick="toggleFavorite()" title="ఇష్టం">♡</button>
+            </div>
+        </div>
+
+        <div class="reader-body">
+            <h2 id="songTitle"></h2>
+            <div id="songLyrics"></div>
+        </div>
+    </div>
+
+    <script>
+        // Load theme
+        if (localStorage.getItem('theme') === 'dark') {
+            document.body.classList.add('dark');
+        }
+
+        let song = JSON.parse(localStorage.getItem("selectedSong"));
+        let fontSize = parseInt(localStorage.getItem("lyricsFontSize")) || 18;
+
+        if (song) {
+            document.getElementById("songTitle").innerText = `${song.number}. ${song.title}`;
+            document.title = `${song.title} - COC Songs`;
+
+            // Smart lyrics formatting
+            const normalized = song.lyrics.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+            const allLines = normalized.split("\n").filter(l => l.trim());
+            let groups = [];
+            let currentGroup = [];
+            allLines.forEach(line => {
+                currentGroup.push(line.trim());
+                if (/\|\|[^|]+\|\|\s*$/.test(line.trim())) {
+                    groups.push([...currentGroup]);
+                    currentGroup = [];
+                }
+            });
+            if (currentGroup.length > 0) groups.push(currentGroup);
+
+            // Fallback: if only 1 group (no ||word|| markers), split every 4 lines
+            if (groups.length === 1 && allLines.length > 4) {
+                groups = [];
+                for (let i = 0; i < allLines.length; i += 4) {
+                    groups.push(allLines.slice(i, i + 4).map(l => l.trim()));
+                }
+            }
+
+            const isEnglish = song.language === "English";
+            let verseNum = 0;
+            const formatted = groups.map((group, index) => {
+                const isPallavi = index === 0 || group.some(l => l.includes("#అ.ప."));
+                if (!isPallavi) verseNum++;
+                const linesHtml = group.map(line => {
+                    let text = line;
+                    text = text.replace(/#అ\.ప\.\s*:?\s*/g, '<span class="pallavi-marker">#అ.ప. : </span>');
+                    text = text.replace(/\|\|(\d+)\|\|/g, '<span class="repeat-ref">×$1</span>');
+                    text = text.replace(/\|\|([^|]+)\|\|/g, '<span class="repeat-ref"> $1</span>');
+                    return `<p>${text}</p>`;
+                }).join("");
+                if (!linesHtml) return "";
+                if (isPallavi) {
+                    const pallaviClass = isEnglish ? 'pallavi pallavi-en' : 'pallavi';
+                    return `<div class="${pallaviClass}">${linesHtml}</div>`;
+                } else {
+                    const label = isEnglish ? `Verse ${verseNum}` : `చరణం ${verseNum}`;
+                    return `<div class="stanza"><div class="stanza-num">${label}</div>${linesHtml}</div>`;
+                }
+            }).filter(s => s).join("");
+
+            document.getElementById("songLyrics").innerHTML = formatted;
+            document.getElementById("songLyrics").style.fontSize = fontSize + "px";
+
+            updateFavIcon();
+        }
+
+        function goBack() {
+            window.location.href = "index.html";
+        }
+
+        function changeFont(size) {
+            fontSize += size;
+            fontSize = Math.max(12, Math.min(32, fontSize));
+            document.getElementById("songLyrics").style.fontSize = fontSize + "px";
+            localStorage.setItem("lyricsFontSize", fontSize);
+        }
+
+        function toggleFavorite() {
+            let favorites = JSON.parse(localStorage.getItem("favorites")) || [];
+            if (favorites.includes(song.number)) {
+                favorites = favorites.filter(n => n !== song.number);
+            } else {
+                favorites.push(song.number);
+            }
+            localStorage.setItem("favorites", JSON.stringify(favorites));
+            updateFavIcon();
+        }
+
+        function updateFavIcon() {
+            const btn = document.getElementById("favBtn");
+            let favorites = JSON.parse(localStorage.getItem("favorites")) || [];
+            if (favorites.includes(song.number)) {
+                btn.textContent = "❤️";
+                btn.classList.add("active");
+            } else {
+                btn.textContent = "♡";
+                btn.classList.remove("active");
+            }
+        }
+    </script>
+
+</body>
+
+</html>

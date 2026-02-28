@@ -1,0 +1,19 @@
+{
+    "name": "coc-songs",
+    "version": "1.0.0",
+    "description": "Church of Christ Songs - Telugu & English Hymnal",
+    "private": true,
+    "scripts": {
+        "build": "powershell -Command New-Item -ItemType Directory -Path www -Force; Copy-Item index.html,song.html,style.css,app.js,songs.json,manifest.json,sw.js,logo.jpg -Destination www -Force; Copy-Item -Recurse -Force icons -Destination www\\icons",
+        "cap:sync": "npm run build && npx cap sync android",
+        "cap:open": "npx cap open android"
+    },
+    "dependencies": {
+        "@capacitor/core": "^8.1.0",
+        "@capacitor/ios": "^8.1.0"
+    },
+    "devDependencies": {
+        "@capacitor/android": "^6.0.0",
+        "@capacitor/cli": "^6.0.0"
+    }
+}

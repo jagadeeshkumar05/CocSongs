@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="description" content="Church of Christ Songs - Telugu & English Hymnal">
+  <meta name="theme-color" content="#4a1a8a">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="COC Songs">
+  <title>COC Songs</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" href="icons/icon-192.png" type="image/png">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+
+  <!-- Splash Screen -->
+  <div id="splashScreen" class="splash-screen">
+    <div class="splash-content">
+      <img src="icons/icon-512.png" alt="COC Songs" class="splash-icon" />
+      <h1 class="splash-title">COC Songs</h1>
+      <p class="splash-subtitle">Christian Psalms</p>
+    </div>
+  </div>
+
+  <header>
+    <div class="header-top">
+      <div class="app-title">
+        <span class="app-icon">🎵</span>
+        <h1>COC Songs</h1>
+      </div>
+      <button class="theme-toggle" onclick="toggleTheme()" aria-label="Toggle theme">🌙</button>
+    </div>
+
+    <div class="search-wrapper">
+      <span class="search-icon">🔍</span>
+      <input type="text" id="searchInput" placeholder="Search songs..." />
+    </div>
+
+    <div class="filters">
+      <button class="active" onclick="setFilter('all', this)">All</button>
+      <button onclick="setFilter('Telugu', this)">Telugu</button>
+      <button onclick="setFilter('English', this)">English</button>
+    </div>
+  </header>
+
+  <div id="alphabetContainer"></div>
+
+  <div class="song-count" id="songCount"></div>
+
+  <main id="songList">
+    <div class="loading">
+      <div class="loading-spinner"></div>
+      <p>Loading songs...</p>
+    </div>
+  </main>
+
+  <div id="songModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-toolbar">
+        <button class="back-btn" onclick="closeModal()">← Back</button>
+        <div class="modal-controls">
+          <button onclick="changeFontModal(-2)" title="Smaller">A-</button>
+          <button onclick="changeFontModal(2)" title="Larger">A+</button>
+          <button class="fav-btn" id="modalFavBtn" onclick="toggleFavModal()" title="Favorite">♡</button>
+        </div>
+      </div>
+      <div class="modal-body">
+        <h2 id="modalTitle"></h2>
+        <div id="modalLyrics"></div>
+      </div>
+    </div>
+  </div>
+
+  <nav class="bottom-nav">
+    <button class="nav-item active" onclick="showHome()">
+      <span class="nav-icon">🏠</span>
+      <span class="nav-label">Home</span>
+    </button>
+    <button class="nav-item" onclick="showFavorites()">
+      <span class="nav-icon">❤️</span>
+      <span class="nav-label">Favorites</span>
+    </button>
+  </nav>
+
+  <script src="app.js"></script>
+  <script>
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('./sw.js');
+    }
+  </script>
+</body>
+
+</html>
